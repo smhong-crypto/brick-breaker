@@ -270,6 +270,8 @@
     const paddle = {
       width: 132,
       height: 16,
+      toothHeight: 12,
+      teeth: 11,
       x: canvas.width / 2 - 66,
       y: canvas.height - 48,
       speed: 9
@@ -313,7 +315,7 @@
       state.launched = false;
       paddle.x = canvas.width / 2 - paddle.width / 2;
       ball.x = paddle.x + paddle.width / 2;
-      ball.y = paddle.y - ball.radius - 2;
+      ball.y = paddle.y - paddle.toothHeight - ball.radius - 2;
       const direction = Math.random() > 0.5 ? 1 : -1;
       ball.speed = 6.3 + state.level * 0.35;
       ball.vx = direction * (3.7 + state.level * 0.18);
@@ -399,21 +401,25 @@
 
       if (!state.launched) {
         ball.x = paddle.x + paddle.width / 2;
-        ball.y = paddle.y - ball.radius - 2;
+        ball.y = paddle.y - paddle.toothHeight - ball.radius - 2;
       }
     }
 
     function hitPaddle() {
       const withinX = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
-      const withinY = ball.y + ball.radius > paddle.y && ball.y - ball.radius < paddle.y + paddle.height;
+      const withinY = ball.y + ball.radius > paddle.y - paddle.toothHeight && ball.y - ball.radius < paddle.y + paddle.height;
       if (!withinX || !withinY || ball.vy <= 0) return;
 
       const hit = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
-      const angle = hit * 1.05;
+      const toothWidth = paddle.width / paddle.teeth;
+      const toothPosition = ((ball.x - paddle.x) % toothWidth) / toothWidth;
+      const slopeKick = toothPosition < 0.5 ? -0.34 : 0.34;
+      const surpriseKick = (Math.random() - 0.5) * 0.22;
+      const angle = clamp(hit * 0.95 + slopeKick + surpriseKick, -1.25, 1.25);
       ball.speed = Math.min(ball.speed + 0.05, 10.8);
       ball.vx = Math.sin(angle) * ball.speed;
       ball.vy = -Math.cos(angle) * ball.speed;
-      ball.y = paddle.y - ball.radius - 1;
+      ball.y = paddle.y - paddle.toothHeight - ball.radius - 1;
     }
 
     function speedUpBall(amount) {
@@ -561,9 +567,29 @@
       ctx.fillStyle = grad;
       ctx.shadowColor = "rgba(246, 196, 69, 0.55)";
       ctx.shadowBlur = 16;
-      roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 8);
+      jaggedPaddlePath();
       ctx.fill();
+      ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+      ctx.fillRect(paddle.x + 12, paddle.y + 5, paddle.width - 24, 3);
       ctx.shadowBlur = 0;
+    }
+
+    function jaggedPaddlePath() {
+      const toothWidth = paddle.width / paddle.teeth;
+      ctx.beginPath();
+      ctx.moveTo(paddle.x, paddle.y);
+      for (let i = 0; i < paddle.teeth; i += 1) {
+        const left = paddle.x + i * toothWidth;
+        const peak = left + toothWidth / 2;
+        const right = left + toothWidth;
+        ctx.lineTo(peak, paddle.y - paddle.toothHeight);
+        ctx.lineTo(right, paddle.y);
+      }
+      ctx.lineTo(paddle.x + paddle.width, paddle.y + paddle.height - 4);
+      ctx.quadraticCurveTo(paddle.x + paddle.width, paddle.y + paddle.height, paddle.x + paddle.width - 6, paddle.y + paddle.height);
+      ctx.lineTo(paddle.x + 6, paddle.y + paddle.height);
+      ctx.quadraticCurveTo(paddle.x, paddle.y + paddle.height, paddle.x, paddle.y + paddle.height - 4);
+      ctx.closePath();
     }
 
     function drawBall() {
