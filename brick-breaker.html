@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>벽돌깨기</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #101418;
+      --panel: #1b2329;
+      --line: #31404a;
+      --text: #eef4f7;
+      --muted: #a7b6be;
+      --accent: #f6c445;
+      --accent-2: #58d6b3;
+      --danger: #ff6b6b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(88, 214, 179, 0.18), transparent 28rem),
+        linear-gradient(135deg, #101418, #172026 52%, #11171b);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .app {
+      width: min(96vw, 960px);
+      padding: 20px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 4vw, 2.6rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .stat {
+      min-width: 82px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(27, 35, 41, 0.82);
+      text-align: center;
+    }
+
+    .stat strong {
+      display: block;
+      color: var(--text);
+      font-size: 1.05rem;
+    }
+
+    .stage {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0b1013;
+      box-shadow: 0 18px 60px rgba(0, 0, 0, 0.36);
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 10;
+      max-height: 78vh;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: rgba(7, 10, 12, 0.54);
+      text-align: center;
+    }
+
+    .overlay[hidden] {
+      display: none;
+    }
+
+    .dialog {
+      width: min(460px, 92%);
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(22, 30, 35, 0.94);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+    }
+
+    .dialog h2 {
+      margin: 0 0 10px;
+      font-size: clamp(1.4rem, 5vw, 2.2rem);
+      letter-spacing: 0;
+    }
+
+    .dialog p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button {
+      min-height: 42px;
+      border: 0;
+      border-radius: 8px;
+      padding: 0 16px;
+      background: var(--accent);
+      color: #181510;
+      font: 700 0.98rem/1 "Segoe UI", system-ui, sans-serif;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      border: 1px solid var(--line);
+      background: #26323a;
+      color: var(--text);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .mobile-buttons {
+      display: none;
+      gap: 8px;
+    }
+
+    .mobile-buttons button {
+      width: 54px;
+      padding: 0;
+      background: #26323a;
+      color: var(--text);
+      border: 1px solid var(--line);
+      font-size: 1.25rem;
+    }
+
+    @media (max-width: 680px) {
+      .app {
+        padding: 12px;
+      }
+
+      .topbar,
+      .controls {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .stats {
+        justify-content: flex-start;
+      }
+
+      .stat {
+        min-width: 72px;
+        padding: 7px 8px;
+      }
+
+      .mobile-buttons {
+        display: flex;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <div class="topbar">
+      <h1>벽돌깨기</h1>
+      <div class="stats" aria-live="polite">
+        <div class="stat">점수<strong id="score">0</strong></div>
+        <div class="stat">레벨<strong id="level">1</strong></div>
+        <div class="stat">생명<strong id="lives">3</strong></div>
+      </div>
+    </div>
+
+    <section class="stage" id="stage">
+      <canvas id="game" width="960" height="600" aria-label="벽돌깨기 게임 화면"></canvas>
+      <div class="overlay" id="overlay">
+        <div class="dialog">
+          <h2 id="overlayTitle">시작!</h2>
+          <p id="overlayText">방향키 또는 마우스로 패들을 움직이고, 스페이스바로 공을 발사하세요.</p>
+          <div class="actions">
+            <button id="startButton">게임 시작</button>
+            <button class="secondary" id="resetButton">처음부터</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="controls">
+      <span>← → 이동 · Space 발사/재개 · P 일시정지 · R 재시작</span>
+      <div class="mobile-buttons" aria-label="모바일 조작">
+        <button id="leftButton" aria-label="왼쪽">←</button>
+        <button id="launchButton" aria-label="발사">●</button>
+        <button id="rightButton" aria-label="오른쪽">→</button>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const canvas = document.querySelector("#game");
+    const ctx = canvas.getContext("2d");
+    const stage = document.querySelector("#stage");
+    const overlay = document.querySelector("#overlay");
+    const overlayTitle = document.querySelector("#overlayTitle");
+    const overlayText = document.querySelector("#overlayText");
+    const scoreEl = document.querySelector("#score");
+    const levelEl = document.querySelector("#level");
+    const livesEl = document.querySelector("#lives");
+    const startButton = document.querySelector("#startButton");
+    const resetButton = document.querySelector("#resetButton");
+    const leftButton = document.querySelector("#leftButton");
+    const rightButton = document.querySelector("#rightButton");
+    const launchButton = document.querySelector("#launchButton");
+
+    const state = {
+      score: 0,
+      level: 1,
+      lives: 3,
+      running: false,
+      paused: false,
+      launched: false,
+      keys: new Set(),
+      pointerX: null,
+      bricks: [],
+      particles: []
+    };
+
+    const paddle = {
+      width: 132,
+      height: 16,
+      x: canvas.width / 2 - 66,
+      y: canvas.height - 48,
+      speed: 9
+    };
+
+    const ball = {
+      radius: 9,
+      x: canvas.width / 2,
+      y: paddle.y - 10,
+      vx: 4.3,
+      vy: -5.6,
+      speed: 6.7
+    };
+
+    function makeBricks() {
+      const rows = Math.min(5 + state.level, 8);
+      const cols = 10;
+      const gap = 10;
+      const top = 72;
+      const side = 42;
+      const width = (canvas.width - side * 2 - gap * (cols - 1)) / cols;
+      const height = 24;
+      const colors = ["#ff6b6b", "#f6c445", "#58d6b3", "#53a8ff", "#c98cff", "#ff9f43", "#7bed9f", "#70a1ff"];
+
+      state.bricks = [];
+      for (let row = 0; row < rows; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          state.bricks.push({
+            x: side + col * (width + gap),
+            y: top + row * (height + gap),
+            width,
+            height,
+            color: colors[row % colors.length],
+            power: row < 2 && state.level > 2 ? 2 : 1
+          });
+        }
+      }
+    }
+
+    function resetBall() {
+      state.launched = false;
+      paddle.x = canvas.width / 2 - paddle.width / 2;
+      ball.x = paddle.x + paddle.width / 2;
+      ball.y = paddle.y - ball.radius - 2;
+      const direction = Math.random() > 0.5 ? 1 : -1;
+      ball.speed = 6.3 + state.level * 0.35;
+      ball.vx = direction * (3.7 + state.level * 0.18);
+      ball.vy = -Math.sqrt(Math.max(ball.speed * ball.speed - ball.vx * ball.vx, 18));
+    }
+
+    function newGame() {
+      state.score = 0;
+      state.level = 1;
+      state.lives = 3;
+      state.running = false;
+      state.paused = false;
+      state.particles = [];
+      makeBricks();
+      resetBall();
+      updateStats();
+      showOverlay("시작!", "방향키 또는 마우스로 패들을 움직이고, 스페이스바로 공을 발사하세요.");
+      draw();
+    }
+
+    function nextLevel() {
+      state.level += 1;
+      state.running = false;
+      state.paused = false;
+      makeBricks();
+      resetBall();
+      updateStats();
+      showOverlay(`레벨 ${state.level}`, "좋습니다. 조금 더 빨라집니다.");
+    }
+
+    function updateStats() {
+      scoreEl.textContent = state.score;
+      levelEl.textContent = state.level;
+      livesEl.textContent = state.lives;
+    }
+
+    function showOverlay(title, text) {
+      overlayTitle.textContent = title;
+      overlayText.textContent = text;
+      overlay.hidden = false;
+    }
+
+    function hideOverlay() {
+      overlay.hidden = true;
+    }
+
+    function launch() {
+      if (state.lives <= 0) {
+        newGame();
+      }
+      state.running = true;
+      state.paused = false;
+      state.launched = true;
+      hideOverlay();
+    }
+
+    function togglePause() {
+      if (!state.running || !state.launched) return;
+      state.paused = !state.paused;
+      if (state.paused) {
+        showOverlay("일시정지", "스페이스바 또는 P를 누르면 계속합니다.");
+      } else {
+        hideOverlay();
+      }
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function movePaddle() {
+      if (state.pointerX !== null) {
+        paddle.x = clamp(state.pointerX - paddle.width / 2, 12, canvas.width - paddle.width - 12);
+      }
+
+      if (state.keys.has("ArrowLeft") || state.keys.has("a")) {
+        paddle.x -= paddle.speed;
+      }
+      if (state.keys.has("ArrowRight") || state.keys.has("d")) {
+        paddle.x += paddle.speed;
+      }
+      paddle.x = clamp(paddle.x, 12, canvas.width - paddle.width - 12);
+
+      if (!state.launched) {
+        ball.x = paddle.x + paddle.width / 2;
+        ball.y = paddle.y - ball.radius - 2;
+      }
+    }
+
+    function hitPaddle() {
+      const withinX = ball.x + ball.radius > paddle.x && ball.x - ball.radius < paddle.x + paddle.width;
+      const withinY = ball.y + ball.radius > paddle.y && ball.y - ball.radius < paddle.y + paddle.height;
+      if (!withinX || !withinY || ball.vy <= 0) return;
+
+      const hit = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+      const angle = hit * 1.05;
+      ball.speed = Math.min(ball.speed + 0.05, 10.8);
+      ball.vx = Math.sin(angle) * ball.speed;
+      ball.vy = -Math.cos(angle) * ball.speed;
+      ball.y = paddle.y - ball.radius - 1;
+    }
+
+    function speedUpBall(amount) {
+      const currentSpeed = Math.hypot(ball.vx, ball.vy) || ball.speed;
+      const nextSpeed = Math.min(currentSpeed + amount, 12.6);
+      const scale = nextSpeed / currentSpeed;
+      ball.vx *= scale;
+      ball.vy *= scale;
+      ball.speed = nextSpeed;
+    }
+
+    function hitBricks() {
+      for (let i = 0; i < state.bricks.length; i += 1) {
+        const brick = state.bricks[i];
+        const closestX = clamp(ball.x, brick.x, brick.x + brick.width);
+        const closestY = clamp(ball.y, brick.y, brick.y + brick.height);
+        const dx = ball.x - closestX;
+        const dy = ball.y - closestY;
+
+        if (dx * dx + dy * dy > ball.radius * ball.radius) continue;
+
+        brick.power -= 1;
+        state.score += 10 * state.level;
+        burst(brick.x + brick.width / 2, brick.y + brick.height / 2, brick.color);
+
+        const overlapX = Math.min(Math.abs(ball.x - brick.x), Math.abs(ball.x - (brick.x + brick.width)));
+        const overlapY = Math.min(Math.abs(ball.y - brick.y), Math.abs(ball.y - (brick.y + brick.height)));
+        if (overlapX < overlapY) {
+          ball.vx *= -1;
+        } else {
+          ball.vy *= -1;
+        }
+        speedUpBall(0.16 + state.level * 0.02);
+
+        if (brick.power <= 0) {
+          state.bricks.splice(i, 1);
+        }
+        updateStats();
+        break;
+      }
+    }
+
+    function burst(x, y, color) {
+      for (let i = 0; i < 9; i += 1) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 3;
+        state.particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 24,
+          color
+        });
+      }
+    }
+
+    function updateParticles() {
+      state.particles = state.particles.filter((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.035;
+        p.life -= 1;
+        return p.life > 0;
+      });
+    }
+
+    function update() {
+      movePaddle();
+      updateParticles();
+
+      if (!state.running || state.paused || !state.launched) return;
+
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+        ball.vx *= -1;
+        ball.x = clamp(ball.x, ball.radius, canvas.width - ball.radius);
+      }
+      if (ball.y - ball.radius < 0) {
+        ball.vy *= -1;
+        ball.y = ball.radius;
+      }
+
+      hitPaddle();
+      hitBricks();
+
+      if (state.bricks.length === 0) {
+        nextLevel();
+      }
+
+      if (ball.y - ball.radius > canvas.height) {
+        state.lives -= 1;
+        updateStats();
+        if (state.lives <= 0) {
+          state.running = false;
+          showOverlay("게임 오버", `최종 점수는 ${state.score}점입니다. 다시 도전해 보세요.`);
+        } else {
+          resetBall();
+          state.running = false;
+          showOverlay("공을 놓쳤어요", "스페이스바로 다시 발사하세요.");
+        }
+      }
+    }
+
+    function drawBackground() {
+      ctx.fillStyle = "#0b1013";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.055)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x < canvas.width; x += 48) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y < canvas.height; y += 48) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function drawBricks() {
+      for (const brick of state.bricks) {
+        ctx.fillStyle = brick.color;
+        ctx.shadowColor = brick.color;
+        ctx.shadowBlur = 12;
+        roundRect(brick.x, brick.y, brick.width, brick.height, 5);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = brick.power > 1 ? "rgba(0, 0, 0, 0.24)" : "rgba(255, 255, 255, 0.18)";
+        ctx.fillRect(brick.x + 4, brick.y + 4, brick.width - 8, 4);
+      }
+    }
+
+    function drawPaddle() {
+      const grad = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x + paddle.width, paddle.y);
+      grad.addColorStop(0, "#58d6b3");
+      grad.addColorStop(0.5, "#f6c445");
+      grad.addColorStop(1, "#53a8ff");
+      ctx.fillStyle = grad;
+      ctx.shadowColor = "rgba(246, 196, 69, 0.55)";
+      ctx.shadowBlur = 16;
+      roundRect(paddle.x, paddle.y, paddle.width, paddle.height, 8);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function drawBall() {
+      const grad = ctx.createRadialGradient(ball.x - 3, ball.y - 4, 2, ball.x, ball.y, ball.radius + 4);
+      grad.addColorStop(0, "#ffffff");
+      grad.addColorStop(0.45, "#f6c445");
+      grad.addColorStop(1, "#ff6b6b");
+      ctx.fillStyle = grad;
+      ctx.shadowColor = "#f6c445";
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    function drawParticles() {
+      for (const p of state.particles) {
+        ctx.globalAlpha = p.life / 24;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 4, 4);
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function roundRect(x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.arcTo(x + width, y, x + width, y + height, radius);
+      ctx.arcTo(x + width, y + height, x, y + height, radius);
+      ctx.arcTo(x, y + height, x, y, radius);
+      ctx.arcTo(x, y, x + width, y, radius);
+      ctx.closePath();
+    }
+
+    function draw() {
+      drawBackground();
+      drawBricks();
+      drawParticles();
+      drawPaddle();
+      drawBall();
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function canvasXFromEvent(event) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+      return ((clientX - rect.left) / rect.width) * canvas.width;
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (["ArrowLeft", "ArrowRight", " ", "Space"].includes(event.key)) {
+        event.preventDefault();
+      }
+      state.keys.add(event.key);
+      if (event.key === " " || event.code === "Space") {
+        if (state.paused) togglePause();
+        else launch();
+      }
+      if (event.key.toLowerCase() === "p") {
+        togglePause();
+      }
+      if (event.key.toLowerCase() === "r") {
+        newGame();
+      }
+    });
+
+    document.addEventListener("keyup", (event) => {
+      state.keys.delete(event.key);
+    });
+
+    stage.addEventListener("mousemove", (event) => {
+      state.pointerX = canvasXFromEvent(event);
+    });
+
+    stage.addEventListener("mouseleave", () => {
+      state.pointerX = null;
+    });
+
+    stage.addEventListener("touchstart", (event) => {
+      state.pointerX = canvasXFromEvent(event);
+      if (!state.launched) launch();
+    }, { passive: true });
+
+    stage.addEventListener("touchmove", (event) => {
+      state.pointerX = canvasXFromEvent(event);
+    }, { passive: true });
+
+    startButton.addEventListener("click", launch);
+    resetButton.addEventListener("click", newGame);
+    launchButton.addEventListener("click", launch);
+    leftButton.addEventListener("pointerdown", () => state.keys.add("ArrowLeft"));
+    leftButton.addEventListener("pointerup", () => state.keys.delete("ArrowLeft"));
+    leftButton.addEventListener("pointerleave", () => state.keys.delete("ArrowLeft"));
+    rightButton.addEventListener("pointerdown", () => state.keys.add("ArrowRight"));
+    rightButton.addEventListener("pointerup", () => state.keys.delete("ArrowRight"));
+    rightButton.addEventListener("pointerleave", () => state.keys.delete("ArrowRight"));
+
+    newGame();
+    loop();
+  </script>
+</body>
+</html>
